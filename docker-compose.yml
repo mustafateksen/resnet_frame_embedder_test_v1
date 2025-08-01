@@ -16,15 +16,7 @@ services:
       - pytorch_cache:/root/.cache/torch
     environment:
       - PYTHONUNBUFFERED=1
-      - CUDA_VISIBLE_DEVICES=0
       - TORCH_HOME=/root/.cache/torch
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     command: >
       bash -c "
         echo '🍦 Magnum Quality Control System Starting...' &&
@@ -35,7 +27,7 @@ services:
           --architectures resnet18 resnet50
           --tiling_strategy magnum_stick
           --confidence 0.95
-          --device cuda
+          --device auto
           --save_reports
       "
     restart: unless-stopped
