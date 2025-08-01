@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Ana Magnum Kalite Kontrol Servisi
+  magnum-quality-control:
+    build: .
+    container_name: magnum_qc_system
+    volumes:
+      # Görsel klasörlerini mount et
+      - ./good_images:/app/good_images
+      - ./test_images:/app/test_images
+      - ./seperated_images:/app/seperated_images
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      # Model cache için
+      - pytorch_cache:/root/.cache/torch
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0
+      - TORCH_HOME=/root/.cache/torch
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      bash -c "
+        echo '🍦 Magnum Quality Control System Starting...' &&
+        python ice_cream_quality_control_v3.py
+          --good_dir good_images
+          --test_dir test_images
+          --anomaly_folder seperated_images
+          --architectures resnet18 resnet50
+          --tiling_strategy magnum_stick
+          --confidence 0.95
+          --device cuda
+          --save_reports
+      "
+    restart: unless-stopped
+
+  # Web Dashboard (İsteğe bağlı)
+  magnum-dashboard:
+    build: 
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: magnum_dashboard
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./seperated_images:/app/seperated_images:ro
+      - ./reports:/app/reports:ro
+      - ./logs:/app/logs:ro
+    environment:
+      - FLASK_ENV=production
+    depends_on:
+      - magnum-quality-control
+    restart: unless-stopped
+
+  # Monitoring (İsteğe bağlı)
+  magnum-monitor:
+    image: grafana/grafana:latest
+    container_name: magnum_monitor
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=magnum123
+    restart: unless-stopped
+
+volumes:
+  pytorch_cache:
+  grafana_data:
